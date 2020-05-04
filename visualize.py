@@ -9,16 +9,18 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data.sampler import SubsetRandomSampler
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from mpl_toolkits.axes_grid1 import ImageGrid
 import os
 
 
-class ConvNet(nn.Module):
+class Net(nn.Module):
     '''
     Design your model with convolutional layers.
     '''
 
     def __init__(self):
-        super(ConvNet, self).__init__()
+        super(Net, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=(3, 3), stride=1)
         self.conv2 = nn.Conv2d(16, 16, 3, 1)
         self.dropout1 = nn.Dropout2d(0.1)
@@ -54,7 +56,7 @@ assert os.path.exists("mnist_model.pt")
 if __name__ == '__main__':
     # Set the test model
     device = torch.device("cuda")
-    model = ConvNet().to(device)
+    model = Net().to(device)
     model.load_state_dict(torch.load("mnist_model.pt"))
     test_dataset = datasets.MNIST('../data', train=False,
                                   transform=transforms.Compose([
@@ -63,35 +65,81 @@ if __name__ == '__main__':
                                   ]))
     kwargs = {'num_workers': 1, 'pin_memory': True}
     test_loader = torch.utils.data.DataLoader(
-        test_dataset, batch_size=1, shuffle=True, **kwargs)
+        test_dataset, batch_size=1, shuffle=False, **kwargs)
     model.eval()
+    ims = []
     for name, param in model.named_parameters():
         if param.requires_grad:
             if name == "conv1.weight":
-                for i in range(8):
+                for i in range(9):
                     img = param.detach().cpu()[i][0]
-                    plt.imshow(img, cmap='gray')
-                    plt.show()
+                    ims.append(img)
+
+
+    fig = plt.figure(figsize=(4., 4.))
+    grid = ImageGrid(fig, 111,  # similar to subplot(111)
+                     nrows_ncols=(3, 3),  # creates 2x2 grid of axes
+                     axes_pad=0.1,  # pad between axes in inch.
+                     )
+
+    for ax, im in zip(grid, ims):
+        # Iterating over the grid returns the Axes.
+        ax.imshow(im, cmap='gray')
+
+    plt.show()
     embeds = []
+    targets = []
     with torch.no_grad():  # For the inference step, gradient is not computed
         count = 0
         conf = [[0] * 10 for _ in range(10)]
+        print(len(test_dataset[0]))
         for data, target in test_loader:
-            count += 1
+            targets.append(target.item())
             print(count)
             data, target = data.to(device), target.to(device)
-            output,embedding = model(data)
+            output, embedding = model(data)
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             conf[target][pred] = conf[target][pred] + 1
             embedding = embedding.detach().cpu()[0]
-            embeds.append((embedding))
-
+            embeds.append((np.array(embedding)))
             if not pred.eq(target):
                 img = data.detach().cpu()[0].permute(1, 2, 0).reshape((28, 28))
                 plt.imshow(img, cmap='gray')
-                plt.savefig("wrong_images/" + str(count))
+                # plt.savefig("wrong_images/" + str(count))
+            count += 1
         print(conf)
+
+    from sklearn.neighbors import NearestNeighbors
+
+    embeds = np.array(embeds)
+    nbrs = NearestNeighbors(n_neighbors=8, p=2, algorithm='ball_tree').fit(embeds)
+    ims = []
+    for i in range(4):
+        ls = nbrs.kneighbors(embeds[i].reshape(1, -1), return_distance=False)
+        for id in ls[0]:
+            data = test_dataset[id][0]
+            ims.append(data[0])
     from sklearn.manifold import TSNE
 
-    X_embedded = TSNE(n_components=2).fit_transform(embeds)
-    print(X_embedded.shape)
+    fig = plt.figure(figsize=(4., 4.))
+    grid = ImageGrid(fig, 111,  # similar to subplot(111)
+                     nrows_ncols=(4, 8),  # creates 2x2 grid of axes
+                     axes_pad=0.1,  # pad between axes in inch.
+                     )
+
+    for ax, im in zip(grid, ims):
+        # Iterating over the grid returns the Axes.
+        ax.imshow(im, cmap='gray')
+
+    plt.show()
+
+    embeds = TSNE(n_components=2).fit_transform(embeds)
+    print(embeds.shape)
+
+    X = embeds[:, 0]
+    Y = embeds[:, 1]
+
+    plt.clf()
+    sc = plt.scatter(X, Y, c=targets, cmap=cm.get_cmap('Paired', 10))
+    plt.legend(*sc.legend_elements())
+    plt.show()
