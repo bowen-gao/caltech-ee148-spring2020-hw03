@@ -7,6 +7,9 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data.sampler import SubsetRandomSampler
+import numpy as np
+
+np.random.seed(2020)
 
 import os
 
@@ -16,6 +19,7 @@ This code is adapted from two sources:
 (ii) Starter code from Yisong Yue's CS 155 Course (http://www.yisongyue.com/courses/cs155/2020_winter/)
 '''
 
+
 class fcNet(nn.Module):
     '''
     Design your model with fully connected layers (convolutional layers are not
@@ -23,6 +27,7 @@ class fcNet(nn.Module):
     are the sample units you can try:
         Linear, Dropout, activation layers (ReLU, softmax)
     '''
+
     def __init__(self):
         # Define the units that you will use in your model
         # Note that this has nothing to do with the order in which operations
@@ -48,13 +53,15 @@ class ConvNet(nn.Module):
     '''
     Design your model with convolutional layers.
     '''
+
     def __init__(self):
         super(ConvNet, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=8, kernel_size=(3,3), stride=1)
-        self.conv2 = nn.Conv2d(8, 8, 3, 1)
-        self.dropout1 = nn.Dropout2d(0.5)
-        self.dropout2 = nn.Dropout2d(0.5)
-        self.fc1 = nn.Linear(200, 64)
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=(3, 3), stride=1)
+        self.conv2 = nn.Conv2d(16, 16, 3, 1)
+        self.dropout1 = nn.Dropout2d(0.1)
+        self.dropout2 = nn.Dropout2d(0.1)
+        self.bn = nn.BatchNorm2d(16)
+        self.fc1 = nn.Linear(400, 64)
         self.fc2 = nn.Linear(64, 10)
 
     def forward(self, x):
@@ -67,8 +74,9 @@ class ConvNet(nn.Module):
         x = F.relu(x)
         x = F.max_pool2d(x, 2)
         x = self.dropout2(x)
-
+        x = self.bn(x)
         x = torch.flatten(x, 1)
+
         x = self.fc1(x)
         x = F.relu(x)
         x = self.fc2(x)
@@ -81,6 +89,7 @@ class Net(nn.Module):
     '''
     Build the best MNIST classifier.
     '''
+
     def __init__(self):
         super(Net, self).__init__()
 
@@ -93,26 +102,26 @@ def train(args, model, device, train_loader, optimizer, epoch):
     This is your training function. When you call this function, the model is
     trained for 1 epoch.
     '''
-    model.train()   # Set the model to training mode
+    model.train()  # Set the model to training mode
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
-        optimizer.zero_grad()               # Clear the gradient
-        output = model(data)                # Make predictions
-        loss = F.nll_loss(output, target)   # Compute loss
-        loss.backward()                     # Gradient computation
-        optimizer.step()                    # Perform a single optimization step
+        optimizer.zero_grad()  # Clear the gradient
+        output = model(data)  # Make predictions
+        loss = F.nll_loss(output, target)  # Compute loss
+        loss.backward()  # Gradient computation
+        optimizer.step()  # Perform a single optimization step
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.sampler),
-                100. * batch_idx / len(train_loader), loss.item()))
+                       100. * batch_idx / len(train_loader), loss.item()))
 
 
 def test(model, device, test_loader):
-    model.eval()    # Set the model to inference mode
+    model.eval()  # Set the model to inference mode
     test_loss = 0
     correct = 0
     test_num = 0
-    with torch.no_grad():   # For the inference step, gradient is not computed
+    with torch.no_grad():  # For the inference step, gradient is not computed
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
@@ -164,7 +173,7 @@ def main():
     torch.manual_seed(args.seed)
 
     device = torch.device("cuda" if use_cuda else "cpu")
-
+    print(device)
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
     # Evaluate on the official test set
@@ -172,14 +181,14 @@ def main():
         assert os.path.exists(args.load_model)
 
         # Set the test model
-        model = fcNet().to(device)
+        model = ConvNet().to(device)
         model.load_state_dict(torch.load(args.load_model))
 
         test_dataset = datasets.MNIST('../data', train=False,
-                    transform=transforms.Compose([
-                        transforms.ToTensor(),
-                        transforms.Normalize((0.1307,), (0.3081,))
-                    ]))
+                                      transform=transforms.Compose([
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.1307,), (0.3081,))
+                                      ]))
 
         test_loader = torch.utils.data.DataLoader(
             test_dataset, batch_size=args.test_batch_size, shuffle=True, **kwargs)
@@ -190,21 +199,34 @@ def main():
 
     # Pytorch has default MNIST dataloader which loads data at each iteration
     train_dataset = datasets.MNIST('../data', train=True, download=True,
-                transform=transforms.Compose([       # Data preprocessing
-                    transforms.ToTensor(),           # Add data augmentation here
-                    transforms.Normalize((0.1307,), (0.3081,))
-                ]))
+                                   transform=transforms.Compose([  # Data preprocessing
+                                       # transforms.RandomRotation(degrees=90),
+                                       transforms.ToTensor(),  # Add data augmentation here
+                                       transforms.Normalize((0.1307,), (0.3081,))
+                                   ]))
 
     # You can assign indices for training/validation or use a random subset for
     # training by using SubsetRandomSampler. Right now the train and validation
     # sets are built from the same indices - this is bad! Change it so that
     # the training and validation sets are disjoint and have the correct relative sizes.
-    subset_indices_train = range(len(train_dataset))
-    subset_indices_valid = range(len(train_dataset))
 
+    class_ids = [[] for _ in range(10)]
+    for i in range(len(train_dataset)):
+        class_ids[train_dataset.targets[i]].append(i)
+    subset_indices_train = []
+    subset_indices_valid = []
+    for i in range(10):
+        ids = class_ids[i]
+        np.random.shuffle(ids)
+        train_size = int(len(ids) * 0.85)
+        subset_indices_train.extend(ids[:train_size])
+        subset_indices_valid.extend(ids[train_size:])
+    np.random.shuffle(subset_indices_train)
+    np.random.shuffle(subset_indices_valid)
+    print(subset_indices_valid[:10])
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size,
-        sampler=SubsetRandomSampler(subset_indices_train)
+        sampler=SubsetRandomSampler(subset_indices_train),
     )
     val_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.test_batch_size,
@@ -224,7 +246,7 @@ def main():
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
         test(model, device, val_loader)
-        scheduler.step()    # learning rate scheduler
+        scheduler.step()  # learning rate scheduler
 
         # You may optionally save your model at each epoch here
 
