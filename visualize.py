@@ -78,17 +78,18 @@ if __name__ == '__main__':
 
     fig = plt.figure(figsize=(4., 4.))
     grid = ImageGrid(fig, 111,  # similar to subplot(111)
-                     nrows_ncols=(3, 3),  # creates 2x2 grid of axes
+                     nrows_ncols=(3, 3),  # creates 3x3 grid of axes
                      axes_pad=0.1,  # pad between axes in inch.
                      )
 
     for ax, im in zip(grid, ims):
         # Iterating over the grid returns the Axes.
         ax.imshow(im, cmap='gray')
-
+    plt.title("learned kernels")
     plt.show()
     embeds = []
     targets = []
+    wrong_preds=[]
     with torch.no_grad():  # For the inference step, gradient is not computed
         count = 0
         conf = [[0] * 10 for _ in range(10)]
@@ -103,11 +104,25 @@ if __name__ == '__main__':
             embedding = embedding.detach().cpu()[0]
             embeds.append((np.array(embedding)))
             if not pred.eq(target):
-                img = data.detach().cpu()[0].permute(1, 2, 0).reshape((28, 28))
-                plt.imshow(img, cmap='gray')
+                img = data.detach().cpu()[0][0]
+                wrong_preds.append(img)
                 # plt.savefig("wrong_images/" + str(count))
             count += 1
-        print(conf)
+    print(conf)
+    np.savetxt("conf",conf)
+
+    fig = plt.figure(figsize=(4., 4.))
+    grid = ImageGrid(fig, 111,  # similar to subplot(111)
+                     nrows_ncols=(3, 3),  # creates 3x3 grid of axes
+                     axes_pad=0.1,  # pad between axes in inch.
+                     )
+
+    for ax, im in zip(grid, wrong_preds):
+        # Iterating over the grid returns the Axes.
+        ax.imshow(im, cmap='gray')
+    plt.title("misclassified images")
+    plt.show()
+
 
     from sklearn.neighbors import NearestNeighbors
 
@@ -142,4 +157,5 @@ if __name__ == '__main__':
     plt.clf()
     sc = plt.scatter(X, Y, c=targets, cmap=cm.get_cmap('Paired', 10))
     plt.legend(*sc.legend_elements())
+    plt.title("2d visualization of embedding vectors")
     plt.show()

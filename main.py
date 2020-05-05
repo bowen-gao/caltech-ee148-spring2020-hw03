@@ -109,7 +109,7 @@ class Net(nn.Module):
         x = F.relu(x)
         x = F.max_pool2d(x, 2)
         x = self.dropout2(x)
-        x = self.bn(x)
+        #x = self.bn(x)
         x = torch.flatten(x, 1)
 
         x = self.fc1(x)
@@ -155,7 +155,7 @@ def test(model, device, test_loader):
 
     test_loss /= test_num
 
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.6f}%)\n'.format(
         test_loss, correct, test_num,
         100. * correct / test_num))
 
@@ -176,11 +176,11 @@ def get_loss_acc(model, device, data_loader, train=False):
 
     loss /= num
     if not train:
-        print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%)\n'.format(
             loss, correct, num,
             100. * correct / num))
     else:
-        print('\nTrain set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        print('\nTrain set: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%)\n'.format(
             loss, correct, num,
             100. * correct / num))
     return loss, correct / num
@@ -248,7 +248,7 @@ def main():
     # Pytorch has default MNIST dataloader which loads data at each iteration
     train_dataset = datasets.MNIST('../data', train=True, download=True,
                                    transform=transforms.Compose([  # Data preprocessing
-                                       transforms.RandomRotation(degrees=30),
+                                       #transforms.RandomRotation(degrees=30),
                                        transforms.ToTensor(),  # Add data augmentation here
                                        transforms.Normalize((0.1307,), (0.3081,))
                                    ]))
@@ -266,7 +266,7 @@ def main():
     for i in range(10):
         ids = class_ids[i]
         np.random.shuffle(ids)
-        train_size = int(len(ids) * 0.85)
+        train_size = int(len(ids))
         subset_indices_train.extend(ids[:train_size])
         subset_indices_valid.extend(ids[train_size:])
     np.random.shuffle(subset_indices_train)
@@ -282,7 +282,7 @@ def main():
     )
 
     # Load your model [fcNet, ConvNet, Net]
-    model = ConvNet().to(device)
+    model = Net().to(device)
 
     # Try different optimzers here [Adam, SGD, RMSprop]
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
@@ -296,15 +296,17 @@ def main():
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
         train_loss, train_acc = get_loss_acc(model, device, train_loader, True)
-        val_loss, val_acc = get_loss_acc(model, device, val_loader)
+        #val_loss, val_acc = get_loss_acc(model, device, val_loader)
         train_loss_list.append(train_loss)
-        val_loss_list.append(val_loss)
+        #val_loss_list.append(val_loss)
         scheduler.step()  # learning rate scheduler
         # You may optionally save your model at each epoch here
     plt.plot(train_loss_list)
-    plt.show()
-    plt.clf()
     plt.plot(val_loss_list)
+    plt.legend(["train loss", "test loss"])
+    plt.title("curve for train and test loss")
+    plt.xlabel("epochs")
+    plt.ylabel("loss")
     plt.show()
     if args.save_model:
         torch.save(model.state_dict(), "mnist_model.pt")
