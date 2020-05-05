@@ -77,7 +77,7 @@ if __name__ == '__main__':
 
 
     fig = plt.figure(figsize=(4., 4.))
-    grid = ImageGrid(fig, 111,  
+    grid = ImageGrid(fig, 111,
                      nrows_ncols=(3, 3),  # creates 3x3 grid of axes
                      axes_pad=0.1,  # pad between axes in inch.
                      )
