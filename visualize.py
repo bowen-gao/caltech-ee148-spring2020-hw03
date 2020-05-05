@@ -13,6 +13,7 @@ import matplotlib.cm as cm
 from mpl_toolkits.axes_grid1 import ImageGrid
 import os
 
+from sklearn.manifold import TSNE
 
 class Net(nn.Module):
     '''
@@ -108,15 +109,19 @@ if __name__ == '__main__':
                 wrong_preds.append(img)
                 # plt.savefig("wrong_images/" + str(count))
             count += 1
-    print(conf)
+
+    # save confusion matrix
     np.savetxt("conf",conf)
 
+    # visualization of wrong classifications
     fig = plt.figure(figsize=(4., 4.))
     grid = ImageGrid(fig, 111,
                      nrows_ncols=(3, 3),  # creates 3x3 grid of axes
                      axes_pad=0.1,  # pad between axes in inch.
                      )
 
+    np.random.shuffle(wrong_preds)
+    print(len(wrong_preds))
     for ax, im in zip(grid, wrong_preds):
         # Iterating over the grid returns the Axes.
         ax.imshow(im, cmap='gray')
@@ -134,8 +139,9 @@ if __name__ == '__main__':
         for id in ls[0]:
             data = test_dataset[id][0]
             ims.append(data[0])
-    from sklearn.manifold import TSNE
 
+
+    # visualization of 8 nearest images
     fig = plt.figure(figsize=(4., 4.))
     grid = ImageGrid(fig, 111,  # similar to subplot(111)
                      nrows_ncols=(4, 8),  # creates 2x2 grid of axes
@@ -148,6 +154,7 @@ if __name__ == '__main__':
 
     plt.show()
 
+    # visualization of 2d embeddings
     embeds = TSNE(n_components=2).fit_transform(embeds)
     print(embeds.shape)
 
