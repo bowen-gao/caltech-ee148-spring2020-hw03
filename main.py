@@ -109,7 +109,7 @@ class Net(nn.Module):
         x = F.relu(x)
         x = F.max_pool2d(x, 2)
         x = self.dropout2(x)
-        #x = self.bn(x)
+        # x = self.bn(x)
         x = torch.flatten(x, 1)
 
         x = self.fc1(x)
@@ -248,7 +248,7 @@ def main():
     # Pytorch has default MNIST dataloader which loads data at each iteration
     train_dataset = datasets.MNIST('../data', train=True, download=True,
                                    transform=transforms.Compose([  # Data preprocessing
-                                       #transforms.RandomRotation(degrees=30),
+                                       # transforms.RandomRotation(degrees=30),
                                        transforms.ToTensor(),  # Add data augmentation here
                                        transforms.Normalize((0.1307,), (0.3081,))
                                    ]))
@@ -266,7 +266,7 @@ def main():
     for i in range(10):
         ids = class_ids[i]
         np.random.shuffle(ids)
-        train_size = int(len(ids))
+        train_size = int(len(ids) * 0.85)
         subset_indices_train.extend(ids[:train_size])
         subset_indices_valid.extend(ids[train_size:])
     np.random.shuffle(subset_indices_train)
@@ -296,9 +296,9 @@ def main():
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
         train_loss, train_acc = get_loss_acc(model, device, train_loader, True)
-        #val_loss, val_acc = get_loss_acc(model, device, val_loader)
+        val_loss, val_acc = get_loss_acc(model, device, val_loader)
         train_loss_list.append(train_loss)
-        #val_loss_list.append(val_loss)
+        val_loss_list.append(val_loss)
         scheduler.step()  # learning rate scheduler
         # You may optionally save your model at each epoch here
     plt.plot(train_loss_list)
